@@ -556,6 +556,7 @@ const P = {
   mon:'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
   sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.9 4.9l1.4 1.4"/><path d="M17.7 17.7l1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.9 19.1l1.4-1.4"/><path d="M17.7 6.3l1.4-1.4"/>',
   moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  mkt:'<path d="m3 11 18-5v12L3 14v-3Z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
 };
 const ic = (n,s=20)=>`<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
 
@@ -565,6 +566,7 @@ const boards = [
   { id:'daily',    name:'일일 운영',   desc:'입력 → 진단',      sub:'매일 데이터를 입력하면 읽어서 진단 — 흑자도산·수금·노쇼·삭감 신호 (실입력 누적, 데모 아님)' },
   { id:'claims',   name:'삭감 청구',   desc:'위험 청구 큐',  badge:12, sub:'제출 전 삭감 위험 사전 교정 — 위험도순' },
   { id:'revenue',  name:'매출·경영',   desc:'CEO 콕핏',          sub:'전문경영인 콕핏 — 현금·런웨이·삭감·노쇼·세무를 30초에 + 이번 주 액션 (이익보다 현금)' },
+  { id:'mkt',      name:'마케팅·유입', desc:'채널 → 매출',       sub:'콘텐츠(블로그·유튜브·인스타·틱톡) → 예약 → 신환 → 비급여 매출 연결고리 — 채널 지표는 실입력, 기여매출·귀속은 예약경로 태깅 기반 추정' },
   { id:'staff',    name:'인원·근태',   desc:'인사관리',         sub:'인력 현황 · 근태 · 면허 점검 · 직원 카드 클릭 → 이력서 (개인정보 가명·마스킹)' },
   { id:'therapy',  name:'도수치료',   desc:'치료사 스케줄·부하', sub:'도수치료실 — 치료사별 세션·정원·치료 구성 (5/18~5/23 스케줄 시트 반영)' },
   { id:'lab',      name:'임상병리',   desc:'검사실 현황',      sub:'오늘 검사 · 항목별 · 임상병리사 · 외부 수탁 의뢰' },
@@ -812,10 +814,21 @@ const cardDefs = {
   overview: widgets,
   daily: [
     { id:'dy-input',  name:'오늘 입력',  desc:'일일 운영 데이터 누적', render:()=>dyInputCard(),  init(root){ dyWireInput(root); } },
-    { id:'dy-diag',   name:'AI 진단',    desc:'데이터 읽고 진단',     render:()=>dyDiagCard() },
+    { id:'dy-diag',   name:'AI 진단',    desc:'데이터 읽고 진단',     render:()=>dyDiagCard(), init(root){ dyWireDiag(root); } },
     { id:'dy-recent', name:'최근 기록',  desc:'누적 일자',           render:()=>dyRecentCard(), init(root){ dyWireRecent(root); } },
     { id:'dy-set',    name:'가정·설정',  desc:'목표·경고선(진단 기준)', render:()=>dySetCard(),    init(root){ dyWireSet(root); } },
     { id:'dy-backup', name:'데이터 백업·이전', desc:'다른 PC로 .json', render:()=>dyBackupCard(), init(root){ dyWireBackup(root); } },
+  ],
+  mkt: [
+    { id:'mk-funnel',   name:'연결고리',       desc:'마케팅→매출 한 줄',     render:()=>mkFunnelCard(),   init(root){ const b=root.querySelector('#mk-seed'); if(b) b.addEventListener('click',mktSeed); } },
+    { id:'mk-channels', name:'채널별 성과',     desc:'블로그·YT·IG·틱톡·예약', render:()=>mkChannelsCard() },
+    { id:'mk-source',   name:'신환 유입경로',   desc:'경로 도넛',             render:()=>mkSourceCard(),   init(root){ mkSourceInit(root); } },
+    { id:'mk-content',  name:'콘텐츠 ROI',      desc:'예약 기여 TOP',         render:()=>mkContentCard() },
+    { id:'mk-cac',      name:'CAC vs LTV',      desc:'획득비용·생애가치',     render:()=>mkCacCard() },
+    { id:'mk-place',    name:'플레이스·리뷰',   desc:'평점·순위',             render:()=>mkPlaceCard() },
+    { id:'mk-campaign', name:'프리미엄 캠페인', desc:'키성장·리틀리그·줄기세포', render:()=>mkCampaignCard() },
+    { id:'mk-input',    name:'채널 입력',       desc:'주간 데이터',           render:()=>mkInputCard(),    init(root){ mkWireInput(root); } },
+    { id:'mk-set',      name:'가정·설정',       desc:'LTV·전환율·출처',       render:()=>mkSetCard(),      init(root){ mkWireSet(root); } },
   ],
   claims: claims.map((c,i)=>({ id:'cl'+i, lv:c.lv, name:c.n+' · '+c.a, desc:c.pat, render:()=>claimCard(c) })),
   revenue: [
@@ -872,8 +885,8 @@ const cardDefs = {
     ...emrGaps.map((g,i)=>({ id:'gap'+i, name:g.area, desc:'의사랑: '+g.badge[0], render:()=>`<div class="card click" onclick="go('${g.board}')">
       <div class="c-head"><div class="c-title"><span class="ci">${ic('gap',16)}</span>${g.area}</div><span class="badge ${g.badge[1]}">의사랑: ${g.badge[0]}</span></div>
       <div style="font-size:12px;line-height:1.55;margin-top:2px">
-        <div style="display:flex;gap:8px;margin-bottom:7px"><span class="badge b-gray" style="flex-shrink:0">의사랑</span><span style="color:var(--ink2)">${g.um}</span></div>
-        <div style="display:flex;gap:8px"><span class="badge b-green" style="flex-shrink:0">우리</span><span>${g.ours}</span></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:7px"><span class="badge b-gray" style="flex-shrink:0">의사랑</span><span style="color:var(--ink2)">${g.um}</span></div>
+        <div style="display:flex;gap:8px;align-items:center"><span class="badge b-green" style="flex-shrink:0">우리</span><span>${g.ours}</span></div>
       </div>
       <div class="c-foot"><span>${g.boardName} 게시판 열기</span><span>→</span></div></div>`})),
   ],
@@ -940,6 +953,9 @@ function dyDates(){ return Object.keys(dailyData.days).sort(); }
 function dyWon(n){ return Math.round(n).toLocaleString()+'원'; }
 function dyMan(n){ return Math.round(n/10000).toLocaleString()+'만'; }
 function dyPct(n){ return (n*100).toFixed(1)+'%'; }
+function dyCommas(v){ v=String(v).replace(/,/g,'').trim(); if(v==='') return ''; const neg=v[0]==='-'?'-':''; v=v.replace(/[^0-9.]/g,''); const p=v.split('.'); p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,','); return neg+(p.length>1?p[0]+'.'+p.slice(1).join(''):p[0]); }
+function dyNum(v){ return +String(v).replace(/,/g,'')||0; }
+function dyWireNum(root){ root.querySelectorAll('[data-dyf],[data-dset],[data-mkf],[data-mset]').forEach(i=>{ i.addEventListener('focus',()=>{ i.value=String(i.value).replace(/,/g,''); }); i.addEventListener('blur',()=>{ if(String(i.value).trim()!=='') i.value=dyCommas(i.value); }); }); }
 function dySpark(vals,color){ if(!vals.length)return''; const max=Math.max(...vals,1),w=128,h=32,bw=w/vals.length;
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${vals.map((v,i)=>{const bh=Math.max(2,(v/max)*(h-2));return `<rect x="${(i*bw+1).toFixed(1)}" y="${(h-bh).toFixed(1)}" width="${(bw-2).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${color}" opacity="0.8"/>`;}).join('')}</svg>`; }
 
@@ -977,7 +993,7 @@ function dyDiagnose(){
 
 function dyInputCard(){
   const groups={}; DAILY_FIELDS.forEach(([g,k,l])=>{(groups[g]=groups[g]||[]).push([k,l]);});
-  const sections=Object.entries(groups).map(([g,arr])=>`<div class="dy-grp"><div class="dy-gl">${g}</div><div class="dy-fields">${arr.map(([k,l])=>`<label class="dy-f"><span>${l}</span><input type="number" min="0" inputmode="numeric" data-dyf="${k}" placeholder="0"></label>`).join('')}</div></div>`).join('');
+  const sections=Object.entries(groups).map(([g,arr])=>`<div class="dy-grp"><div class="dy-gl">${g}</div><div class="dy-fields">${arr.map(([k,l])=>`<label class="dy-f"><span>${l}</span><input type="text" inputmode="numeric" data-dyf="${k}" placeholder="0"></label>`).join('')}</div></div>`).join('');
   return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('daily',16)}</span>오늘 운영 입력</div><span class="badge b-cyan" id="dy-status">새 입력</span></div>
     <div class="dy-daterow"><label class="dy-f" style="min-width:150px"><span>날짜</span><input type="date" id="dy-date" value="${dyToday()}"></label><span class="meta" id="dy-sum" style="flex:1;align-self:flex-end;padding-bottom:9px">총매출 — (항목 합 자동)</span></div>
     ${sections}
@@ -985,16 +1001,17 @@ function dyInputCard(){
 }
 function dyWireInput(root){
   const dateEl=root.querySelector('#dy-date');
-  const sum=()=>{ const r={}; root.querySelectorAll('[data-dyf]').forEach(i=>r[i.dataset.dyf]=+i.value||0); root.querySelector('#dy-sum').textContent='총매출 '+dyWon(dyTotal(r)); };
-  const fill=()=>{ const rec=dailyData.days[dateEl.value]||null; root.querySelectorAll('[data-dyf]').forEach(i=>{ i.value=(rec&&rec[i.dataset.dyf]!=null)?rec[i.dataset.dyf]:''; }); root.querySelector('#dy-status').textContent=rec?'기존 기록 — 덮어쓰기':'새 입력'; sum(); };
+  dyWireNum(root);
+  const sum=()=>{ const r={}; root.querySelectorAll('[data-dyf]').forEach(i=>r[i.dataset.dyf]=dyNum(i.value)); root.querySelector('#dy-sum').textContent='총매출 '+dyWon(dyTotal(r)); };
+  const fill=()=>{ const rec=dailyData.days[dateEl.value]||null; root.querySelectorAll('[data-dyf]').forEach(i=>{ i.value=(rec&&rec[i.dataset.dyf]!=null)?dyCommas(rec[i.dataset.dyf]):''; }); root.querySelector('#dy-status').textContent=rec?'기존 기록 — 덮어쓰기':'새 입력'; sum(); };
   dateEl.addEventListener('change',fill);
   root.querySelectorAll('[data-dyf]').forEach(i=>i.addEventListener('input',sum));
-  root.querySelector('#dy-save').addEventListener('click',()=>{ const rec={}; root.querySelectorAll('[data-dyf]').forEach(i=>{ if(i.value!=='') rec[i.dataset.dyf]=+i.value||0; }); dailyData.days[dateEl.value]=rec; saveDaily(); renderGrid(); });
+  root.querySelector('#dy-save').addEventListener('click',()=>{ const rec={}; root.querySelectorAll('[data-dyf]').forEach(i=>{ if(String(i.value).trim()!=='') rec[i.dataset.dyf]=dyNum(i.value); }); dailyData.days[dateEl.value]=rec; saveDaily(); renderGrid(); });
   fill();
 }
 function dyDiagCard(){
   const dg=dyDiagnose();
-  if(dg.signal==='none') return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('overview',16)}</span>AI 진단</div><span class="badge b-gray">데이터 0일</span></div><div class="meta">아직 입력된 일일 데이터가 없습니다. <b>왼쪽 ‘오늘 운영 입력’에서 첫 날짜를 저장</b>하면 진단이 시작됩니다 — 며칠 쌓일수록 수금·노쇼·현금 추세 진단이 정밀해집니다.</div></div>`;
+  if(dg.signal==='none') return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('overview',16)}</span>AI 진단</div><span class="badge b-gray">데이터 0일</span></div><div class="meta">아직 입력된 일일 데이터가 없습니다. <b>왼쪽 ‘오늘 운영 입력’에서 첫 날짜를 저장</b>하거나, 아래 버튼으로 <b>샘플 14일</b>을 채우면 진단을 바로 볼 수 있습니다.</div><div class="dy-actions" style="margin-top:13px"><span class="meta">체험용 가공 샘플 데이터</span><button class="cc-go" type="button" id="dy-seed">${ic('daily',14)} 샘플 14일 데모 채우기</button></div></div>`;
   const sm={good:['양호','b-green'],warn:['주의','b-amber'],risk:['위험','b-red']}[dg.signal];
   const m=dg.metrics;
   return `<div class="card span2 dy-diag s-${dg.signal}"><div class="c-head"><div class="c-title"><span class="ci">${ic('overview',16)}</span>AI 진단 <span class="meta" style="font-weight:500;margin-left:2px">· 최근 ${dg.days}일 분석</span></div><span class="badge ${sm[1]}">${sm[0]}</span></div>
@@ -1011,9 +1028,38 @@ function dyRecentCard(){
 }
 function dyWireRecent(root){ root.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); delete dailyData.days[b.dataset.del]; saveDaily(); renderGrid(); })); }
 function dySetCard(){
-  return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('settings',16)}</span>가정·설정</div><span class="badge b-amber">진단 기준</span></div>${DSET_FIELDS.map(([k,l])=>`<label class="dy-f" style="margin-bottom:9px"><span>${l}</span><input type="number" step="any" data-dset="${k}" value="${dailyData.settings[k]}"></label>`).join('')}<div class="dy-actions"><span class="meta">신호 임계의 근거값</span><button class="cc-go" type="button" id="dy-setsave">설정 저장</button></div></div>`;
+  return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('settings',16)}</span>가정·설정</div><span class="badge b-amber">진단 기준</span></div>${DSET_FIELDS.map(([k,l])=>`<label class="dy-f" style="margin-bottom:9px"><span>${l}</span><input type="text" inputmode="decimal" data-dset="${k}" value="${dyCommas(dailyData.settings[k])}"></label>`).join('')}<div class="dy-actions"><span class="meta">신호 임계의 근거값</span><button class="cc-go" type="button" id="dy-setsave">설정 저장</button></div></div>`;
 }
-function dyWireSet(root){ root.querySelector('#dy-setsave').addEventListener('click',()=>{ root.querySelectorAll('[data-dset]').forEach(i=>{ if(i.value!=='') dailyData.settings[i.dataset.dset]=+i.value||0; }); saveDaily(); renderGrid(); }); }
+function dyWireSet(root){ dyWireNum(root); root.querySelector('#dy-setsave').addEventListener('click',()=>{ root.querySelectorAll('[data-dset]').forEach(i=>{ if(String(i.value).trim()!=='') dailyData.settings[i.dataset.dset]=dyNum(i.value); }); saveDaily(); renderGrid(); }); }
+
+/* ----- 샘플 데모 데이터 (명시적 가공 샘플 — 정형외과 의원 14일치, 진단 엔진은 실제로 동작) ----- */
+function dySeedDemo(){
+  if(Object.keys(dailyData.days).length && !confirm('샘플 14일 데이터를 채웁니다. 같은 날짜의 기존 입력은 덮어쓸 수 있어요. 계속할까요?')) return;
+  const z=n=>String(n).padStart(2,'0'), today=new Date();
+  for(let i=13;i>=0;i--){
+    const dt=new Date(today); dt.setDate(today.getDate()-i);
+    if(dt.getDay()===0) continue;                    // 일요일 휴진
+    const sat=dt.getDay()===6, load=sat?0.62:1;      // 토요일 진료량 62%
+    const w=Math.sin(i*1.1)*0.5+Math.cos(i*0.7)*0.5; // -1~1 자연 변동
+    const r={ sinhwan:Math.max(2,Math.round((10+w*3)*load)), jaejin:Math.round((58+w*8)*load) };
+    r.yeyak=Math.round((r.sinhwan+r.jaejin)*1.06);
+    r.nosho=Math.round(r.yeyak*(0.066+(i%5===0?0.018:0)));     // 노쇼율 ~7% (양호선 근처)
+    r.geupyeo=Math.round((4050000+w*350000)*load);
+    r.dosu=Math.round((1520000+w*220000)*load);
+    r.chunggyeok=Math.round((410000+w*90000)*load);
+    r.jusa=Math.round((560000+w*120000)*load);
+    r.bojogi=Math.round((300000+w*80000)*load);
+    const tot=r.geupyeo+r.dosu+r.chunggyeok+r.jusa+r.bojogi;
+    r.boheom=Math.round(r.geupyeo*0.92);
+    r.sakgam=Math.round(r.boheom*(0.042+(i%4===0?0.012:-0.006)));  // 삭감률 평균 ~4.2% → '주의' 유발(1단계 쐐기 시연)
+    r.sugeum=Math.round((tot-r.sakgam)*0.962);                    // 수금률 96%대 → 양호
+    r.byeondongbi=Math.round((1180000+w*120000)*load);            // 변동비 — 순현금 +(런웨이 안정)
+    dailyData.days[dt.getFullYear()+'-'+z(dt.getMonth()+1)+'-'+z(dt.getDate())]=r;
+  }
+  saveDaily(); renderGrid();
+}
+function dyClearDays(){ if(!Object.keys(dailyData.days).length) return; if(!confirm('저장된 일일 데이터를 모두 비웁니다. 계속할까요?')) return; dailyData.days={}; saveDaily(); renderGrid(); }
+function dyWireDiag(root){ const b=root.querySelector('#dy-seed'); if(b) b.addEventListener('click',dySeedDemo); }
 
 /* ----- 데이터 백업·이전 (다른 PC로 — localStorage ↔ .json) ----- */
 const BACKUP_KEYS=['aios_daily_v1','aios_glass_layout_v1','aios_glass_theme'];
@@ -1041,6 +1087,7 @@ function dyBackupCard(){
   return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('sync',16)}</span>데이터 백업 · 다른 PC로</div><span class="badge b-cyan">${dyDates().length}일</span></div>
     <div class="meta" style="margin-bottom:12px">일일 입력·게시판 레이아웃·테마는 <b>이 브라우저에만</b> 저장됩니다(서버 없음). 다른 데스크탑에서 쓰려면 여기서 <b>내보내기</b> → HTML을 연 그 PC에서 <b>가져오기</b>.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="cc-go" type="button" id="dy-export">${ic('daily',14)} 내보내기 (.json)</button><button class="dy-imp" type="button" id="dy-import-btn">${ic('sync',14)} 가져오기</button><input type="file" id="dy-import-file" accept="application/json,.json" hidden></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:11px;border-top:1px solid var(--glass-bd-soft);padding-top:11px"><span class="meta" style="width:100%;margin-bottom:2px">체험·시연용 — 가공된 샘플 데이터(실데이터 아님)</span><button class="dy-imp" type="button" id="dy-seed2">${ic('daily',14)} 샘플 14일 채우기</button><button class="dy-imp" type="button" id="dy-clear">전체 비우기</button></div>
     <div class="c-foot"><span>HTML은 GitHub서 받고, 데이터는 이 파일로 이전</span><span class="badge b-gray">localStorage</span></div></div>`;
 }
 function dyWireBackup(root){
@@ -1048,7 +1095,106 @@ function dyWireBackup(root){
   const fileEl=root.querySelector('#dy-import-file');
   root.querySelector('#dy-import-btn').addEventListener('click',()=>fileEl.click());
   fileEl.addEventListener('change',e=>{ if(e.target.files[0]) dyImport(e.target.files[0]); e.target.value=''; });
+  const seed=root.querySelector('#dy-seed2'); if(seed) seed.addEventListener('click',dySeedDemo);
+  const clr=root.querySelector('#dy-clear'); if(clr) clr.addEventListener('click',dyClearDays);
 }
+
+/* ===== 마케팅·유입 — 콘텐츠 → 예약 → 신환 → 비급여 매출 연결고리 (채널 실입력 · 기여 추정) ===== */
+const MKEY='aios_mkt_v1';
+const MKT_CH=[['blog','네이버 블로그','b-green'],['youtube','유튜브','b-red'],['insta','인스타그램','b-amber'],['tiktok','틱톡','b-cyan'],['naver','네이버예약','b-green'],['kakao','카카오예약','b-amber']];
+const MKT_DEF_SET={ ltv:920000, nonsalRate:0.46, period:'최근 4주' };
+function loadMkt(){ let o=null; try{ o=JSON.parse(localStorage.getItem(MKEY)||'null'); }catch(_){ } o=o||{}; return { settings:{...MKT_DEF_SET,...(o.settings||{})}, ch:o.ch||{}, source:o.source||{}, content:o.content||[], place:o.place||null, campaigns:o.campaigns||[] }; }
+let mktData=loadMkt();
+function saveMkt(){ try{ localStorage.setItem(MKEY, JSON.stringify(mktData)); }catch(_){ } }
+function mktHas(){ return Object.keys(mktData.ch).length>0; }
+function mktWon(n){ return Math.round(n).toLocaleString()+'원'; }
+function mktMan(n){ return Math.round(n/10000).toLocaleString()+'만'; }
+function mktK(n){ n=+n||0; return n>=10000?(n/10000).toFixed(1)+'만':n.toLocaleString(); }
+function mktFunnel(){ const s=f=>Object.values(mktData.ch).reduce((a,c)=>a+(+c[f]||0),0); const reach=s('reach'),visits=s('visits'),bookings=s('bookings'),newpat=s('newpat'),rev=s('rev'); return {reach,visits,bookings,newpat,nonsal:Math.round(newpat*(mktData.settings.nonsalRate||0)),rev}; }
+function mktMini(title,icon){ return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic(icon||'mkt',16)}</span>${title}</div><span class="badge b-gray">데이터 없음</span></div><div class="meta">마케팅 샘플을 채우면 표시됩니다.</div></div>`; }
+function mktSeed(){
+  if(mktHas() && !confirm('마케팅 샘플 데이터(최근 4주)를 채웁니다. 기존 입력을 덮어쓸 수 있어요. 계속할까요?')) return;
+  mktData.settings={...MKT_DEF_SET};
+  mktData.ch={
+    blog:{reach:18400,visits:2120,bookings:0,newpat:38,rev:9200000,cost:0},
+    youtube:{reach:9600,visits:880,bookings:0,newpat:17,rev:6300000,cost:0},
+    insta:{reach:7200,visits:540,bookings:0,newpat:9,rev:2400000,cost:380000},
+    tiktok:{reach:12500,visits:610,bookings:0,newpat:7,rev:1500000,cost:0},
+    naver:{reach:0,visits:3100,bookings:142,newpat:0,rev:0,cost:160000},
+    kakao:{reach:0,visits:1180,bookings:58,newpat:0,rev:0,cost:90000},
+  };
+  mktData.source={'네이버검색':34,'블로그':38,'유튜브':17,'인스타':9,'틱톡':7,'소개':11,'워크인':6};
+  mktData.content=[
+    {title:'테니스엘보, 충격파로 6주 만에',ch:'블로그',bookings:14,rev:4200000},
+    {title:'무릎 연골주사 vs 줄기세포 차이',ch:'유튜브',bookings:11,rev:7700000},
+    {title:'아이 키성장 골든타임 체크리스트',ch:'블로그',bookings:9,rev:2250000},
+    {title:'오십견 도수치료 한 달 변화',ch:'인스타',bookings:7,rev:1960000},
+    {title:'족저근막염 스트레칭 30초 루틴',ch:'틱톡',bookings:5,rev:900000},
+  ];
+  mktData.place={rating:4.8,reviews:312,newReviews:9,rank:2};
+  mktData.campaigns=[
+    {name:'키성장 클리닉',leads:41,booked:18,rev:9000000},
+    {name:'리틀리그 클리닉',leads:23,booked:12,rev:3600000},
+    {name:'줄기세포 연골재생',leads:14,booked:6,rev:18000000},
+  ];
+  saveMkt(); renderGrid();
+}
+function mktClear(){ if(!mktHas())return; if(!confirm('마케팅 데이터를 모두 비웁니다. 계속할까요?'))return; mktData={settings:{...MKT_DEF_SET},ch:{},source:{},content:[],place:null,campaigns:[]}; saveMkt(); renderGrid(); }
+function mkFunnelCard(){
+  if(!mktHas()) return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('mkt',16)}</span>마케팅 → 매출 연결고리</div><span class="badge b-gray">데이터 없음</span></div><div class="meta">아직 채널 데이터가 없습니다. <b>아래 ‘샘플 채우기’</b> 또는 입력 카드로 채우면 콘텐츠 → 예약 → 신환 → 비급여 매출이 한 줄로 보입니다.</div><div class="dy-actions" style="margin-top:13px"><span class="meta">체험용 가공 샘플(추정 포함)</span><button class="cc-go" type="button" id="mk-seed">${ic('mkt',14)} 마케팅 샘플 채우기</button></div></div>`;
+  const f=mktFunnel(), S=mktData.settings, pc=(a,b)=>a>0?(b/a*100).toFixed(1)+'%':'—';
+  const tiles=[['노출·도달',mktK(f.reach),'블로그·YT·IG·틱톡'],['웹·유입',mktK(f.visits),'CTR '+pc(f.reach,f.visits)],['예약',f.bookings.toLocaleString(),'예약전환 '+pc(f.visits,f.bookings)],['신환(기여)',f.newpat.toLocaleString(),'콘텐츠 기여분'],['비급여 전환',f.nonsal.toLocaleString(),'전환율 '+Math.round((S.nonsalRate||0)*100)+'%'],['기여매출',mktMan(f.rev),'추정']];
+  return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('mkt',16)}</span>마케팅 → 매출 연결고리</div><span class="badge b-green">기여매출 ${mktMan(f.rev)}</span></div>
+    <div class="ck-grid" style="grid-template-columns:repeat(6,minmax(0,1fr))">${tiles.map(t=>`<div class="ck-tile"><div class="ck-l">${t[0]}</div><div class="ck-v" style="font-size:19px">${t[1]}</div><div class="ck-s">${t[2]}</div></div>`).join('')}</div>
+    <div class="meta" style="margin-top:11px;border-top:1px solid var(--glass-bd-soft);padding-top:9px">콘텐츠 노출 → 예약 → 비급여까지 한 화면. 채널 지표는 실입력, <b>기여매출·신환 귀속은 예약경로 태깅 기반 추정</b> <span class="badge b-gray" style="margin-left:6px">추정 포함</span></div></div>`;
+}
+function mkChannelsCard(){
+  if(!mktHas()) return mktMini('채널별 성과');
+  const rows=MKT_CH.map(([k,name,bd])=>{ const c=mktData.ch[k]||{}; return `<tr><td><span class="badge ${bd}">${name}</span></td><td class="mono">${mktK(c.reach)}</td><td class="mono">${mktK(c.visits)}</td><td class="mono">${(+c.bookings||0)?(+c.bookings).toLocaleString():'—'}</td><td class="mono">${(+c.newpat||0)?(+c.newpat).toLocaleString():'—'}</td><td class="mono">${(+c.rev||0)?mktMan(c.rev):'—'}</td></tr>`; }).join('');
+  return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('mkt',16)}</span>채널별 성과 <span class="meta" style="font-weight:500">· ${mktData.settings.period}</span></div><span class="badge b-cyan">${MKT_CH.length}채널</span></div><div style="overflow-x:auto"><table class="dy-tbl"><thead><tr><th>채널</th><th>노출/도달</th><th>유입</th><th>예약</th><th>신환</th><th>기여매출</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+function mkSourceCard(){ if(!mktHas()||!Object.keys(mktData.source).length) return mktMini('신환 유입경로','staff'); return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('staff',16)}</span>신환 유입경로</div><span class="badge b-amber">경로 추정</span></div><div style="position:relative;height:178px"><canvas></canvas></div></div>`; }
+function mkSourceInit(root){ const cv=root.querySelector('canvas'); if(!cv||!window.Chart)return; const e=Object.entries(mktData.source); const pal=['#0891b2','#0ea5b7','#10b981','#f59e0b','#8b5cf6','#64748b','#94a3b8','#cbd5e1']; new Chart(cv,{type:'doughnut',data:{labels:e.map(x=>x[0]),datasets:[{data:e.map(x=>x[1]),backgroundColor:e.map((_,i)=>pal[i%pal.length]),borderWidth:2,borderColor:'#ffffff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:9,boxHeight:9,font:{size:9.5},color:'#4d6c79',usePointStyle:true,padding:7}},tooltip:{backgroundColor:'#0f2e3d',padding:9,cornerRadius:8,callbacks:{label:c=>' '+c.label+': '+c.parsed+'명'}}}}}); }
+function mkContentCard(){
+  if(!mktHas()||!mktData.content.length) return mktMini('콘텐츠 ROI TOP');
+  const list=[...mktData.content].sort((a,b)=>b.rev-a.rev), max=Math.max(...list.map(c=>c.rev),1);
+  return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('mkt',16)}</span>콘텐츠 ROI TOP</div><span class="badge b-green">예약 기여</span></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">${list.map(c=>`<div><div style="display:flex;justify-content:space-between;gap:8px;font-size:11.5px;margin-bottom:4px"><span style="color:var(--ink2);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.title)}</span><span style="font-weight:700;flex-shrink:0">${mktMan(c.rev)}</span></div><div class="risk-bar"><i style="width:${Math.round(c.rev/max*100)}%;background:var(--cyan)"></i></div><div class="meta" style="margin-top:3px">${esc(c.ch)} · 예약 ${c.bookings}건</div></div>`).join('')}</div></div>`;
+}
+function mkCacCard(){
+  if(!mktHas()) return mktMini('CAC vs LTV','revenue');
+  const cost=Object.values(mktData.ch).reduce((a,c)=>a+(+c.cost||0),0), np=Object.values(mktData.ch).reduce((a,c)=>a+(+c.newpat||0),0);
+  const cac=np>0?cost/np:0, ltv=mktData.settings.ltv||0, ratio=cac>0?ltv/cac:Infinity;
+  return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('revenue',16)}</span>CAC vs LTV</div><span class="badge ${ratio>=3?'b-green':'b-amber'}">${isFinite(ratio)?Math.round(ratio)+':1':'오가닉'}</span></div>
+    <div class="ck-grid" style="grid-template-columns:repeat(2,1fr)"><div class="ck-tile"><div class="ck-l">블렌디드 CAC</div><div class="ck-v">${cac>0?mktWon(cac):'≈0'}</div><div class="ck-s">획득비용/신환</div></div><div class="ck-tile"><div class="ck-l">환자 LTV</div><div class="ck-v ok">${mktMan(ltv)}</div><div class="ck-s">비급여 재구매 포함(추정)</div></div></div>
+    <div class="meta" style="margin-top:9px">총 광고·콘텐츠비 ${mktMan(cost)} · 신환 ${np}명. <b>대부분 오가닉(블로그·유튜브 CAC≈0)</b>이 견인 — 유료(인스타) 비중 점검.</div></div>`;
+}
+function mkPlaceCard(){
+  const p=mktData.place; if(!p) return mktMini('네이버 플레이스·리뷰','bell');
+  return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('bell',16)}</span>네이버 플레이스·리뷰</div><span class="badge b-green">지역 #${p.rank}</span></div>
+    <div class="num-row"><span class="n mono">${p.rating}</span><span class="u">／5.0 · 리뷰 ${(+p.reviews||0).toLocaleString()}</span></div>
+    <div class="meta" style="margin-top:8px">이번 기간 신규 리뷰 <b>${p.newReviews}건</b> · 동네 정형외과 노출 순위 <b>${p.rank}위</b>. 평점·리뷰가 네이버 예약 유입에 직결 — 영수증 리뷰 요청 자동화 대상.</div></div>`;
+}
+function mkCampaignCard(){
+  if(!mktHas()||!mktData.campaigns.length) return mktMini('프리미엄 캠페인');
+  const max=Math.max(...mktData.campaigns.map(c=>c.rev),1);
+  return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('mkt',16)}</span>프리미엄 비급여 캠페인</div><span class="badge b-amber">키성장·리틀리그·줄기세포</span></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">${mktData.campaigns.map(c=>`<div><div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px"><span style="color:var(--ink2);font-weight:600">${esc(c.name)}</span><span style="font-weight:700">${mktMan(c.rev)}</span></div><div class="risk-bar"><i style="width:${Math.round(c.rev/max*100)}%;background:var(--violet)"></i></div><div class="meta" style="margin-top:3px">리드 ${c.leads} → 예약 ${c.booked} (전환 ${c.leads?Math.round(c.booked/c.leads*100):0}%)</div></div>`).join('')}</div></div>`;
+}
+function mkInputCard(){
+  const F=[['reach','노출/도달'],['visits','유입'],['bookings','예약'],['newpat','신환'],['rev','기여매출'],['cost','비용']];
+  const rows=MKT_CH.map(([k,name])=>{ const c=mktData.ch[k]||{}; return `<div style="display:grid;grid-template-columns:84px repeat(6,minmax(0,1fr));gap:7px;align-items:end;margin-bottom:9px"><div style="font-weight:600;font-size:11px;color:var(--ink2);padding-bottom:9px">${name}</div>${F.map(([f,l])=>`<label class="dy-f"><span>${l}</span><input type="text" inputmode="numeric" data-mkf="${k}.${f}" value="${c[f]!=null?dyCommas(c[f]):''}" placeholder="0"></label>`).join('')}</div>`; }).join('');
+  return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('mkt',16)}</span>채널 데이터 입력 (주간)</div><span class="badge b-cyan">실입력</span></div><div style="overflow-x:auto">${rows}</div><div class="dy-actions"><span class="meta">각 플랫폼 통계에서 주간 수치 입력 · 기여매출은 예약경로 태깅 기반 추정치</span><button class="cc-go" type="button" id="mk-save">저장</button></div></div>`;
+}
+function mkWireInput(root){ dyWireNum(root); root.querySelector('#mk-save').addEventListener('click',()=>{ root.querySelectorAll('[data-mkf]').forEach(i=>{ const p=i.dataset.mkf.split('.'); mktData.ch[p[0]]=mktData.ch[p[0]]||{}; mktData.ch[p[0]][p[1]]=String(i.value).trim()===''?0:dyNum(i.value); }); saveMkt(); renderGrid(); }); }
+function mkSetCard(){
+  const S=mktData.settings, F=[['ltv','환자 LTV(원·비급여 포함 추정)'],['nonsalRate','신환→비급여 전환율(0~1)']];
+  return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('settings',16)}</span>가정·설정</div><span class="badge b-amber">추정 기준</span></div>
+    ${F.map(([k,l])=>`<label class="dy-f" style="margin-bottom:9px"><span>${l}</span><input type="text" inputmode="decimal" data-mset="${k}" value="${dyCommas(S[k])}"></label>`).join('')}
+    <div class="meta" style="margin:2px 0 10px;line-height:1.6">데이터 출처: 블로그=네이버 블로그통계, 유튜브=YouTube 스튜디오, 인스타·틱톡=비즈 인사이트, 예약=네이버·카카오 파트너센터(대부분 주간 수동 export). 기여 귀속은 <b>예약경로 태깅 기반 추정</b>.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--glass-bd-soft);padding-top:11px"><span class="meta" style="width:100%;margin-bottom:2px">체험·시연용 — 가공된 샘플(실데이터 아님)</span><button class="cc-go" type="button" id="mk-setsave">설정 저장</button><button class="dy-imp" type="button" id="mk-seed2">샘플 채우기</button><button class="dy-imp" type="button" id="mk-clear">전체 비우기</button></div></div>`;
+}
+function mkWireSet(root){ dyWireNum(root); const ss=root.querySelector('#mk-setsave'); if(ss) ss.addEventListener('click',()=>{ root.querySelectorAll('[data-mset]').forEach(i=>{ if(String(i.value).trim()!=='') mktData.settings[i.dataset.mset]=dyNum(i.value); }); saveMkt(); renderGrid(); }); const s=root.querySelector('#mk-seed2'); if(s) s.addEventListener('click',mktSeed); const c=root.querySelector('#mk-clear'); if(c) c.addEventListener('click',mktClear); }
 
 /* ===== state ===== */
 const LSK = 'aios_glass_layout_v1';
