@@ -1033,8 +1033,8 @@ function dySetCard(){
 function dyWireSet(root){ dyWireNum(root); root.querySelector('#dy-setsave').addEventListener('click',()=>{ root.querySelectorAll('[data-dset]').forEach(i=>{ if(String(i.value).trim()!=='') dailyData.settings[i.dataset.dset]=dyNum(i.value); }); saveDaily(); renderGrid(); }); }
 
 /* ----- 샘플 데모 데이터 (명시적 가공 샘플 — 정형외과 의원 14일치, 진단 엔진은 실제로 동작) ----- */
-function dySeedDemo(){
-  if(Object.keys(dailyData.days).length && !confirm('샘플 14일 데이터를 채웁니다. 같은 날짜의 기존 입력은 덮어쓸 수 있어요. 계속할까요?')) return;
+function dySeedDemo(silent){
+  if(!silent && Object.keys(dailyData.days).length && !confirm('샘플 14일 데이터를 채웁니다. 같은 날짜의 기존 입력은 덮어쓸 수 있어요. 계속할까요?')) return;
   const z=n=>String(n).padStart(2,'0'), today=new Date();
   for(let i=13;i>=0;i--){
     const dt=new Date(today); dt.setDate(today.getDate()-i);
@@ -1056,7 +1056,7 @@ function dySeedDemo(){
     r.byeondongbi=Math.round((1180000+w*120000)*load);            // 변동비 — 순현금 +(런웨이 안정)
     dailyData.days[dt.getFullYear()+'-'+z(dt.getMonth()+1)+'-'+z(dt.getDate())]=r;
   }
-  saveDaily(); renderGrid();
+  saveDaily(); if(!silent) renderGrid();
 }
 function dyClearDays(){ if(!Object.keys(dailyData.days).length) return; if(!confirm('저장된 일일 데이터를 모두 비웁니다. 계속할까요?')) return; dailyData.days={}; saveDaily(); renderGrid(); }
 function dyWireDiag(root){ const b=root.querySelector('#dy-seed'); if(b) b.addEventListener('click',dySeedDemo); }
@@ -1105,6 +1105,9 @@ const MKT_CH=[['blog','네이버 블로그','b-green'],['youtube','유튜브','b
 const MKT_DEF_SET={ ltv:920000, nonsalRate:0.46, period:'최근 4주' };
 function loadMkt(){ let o=null; try{ o=JSON.parse(localStorage.getItem(MKEY)||'null'); }catch(_){ } o=o||{}; return { settings:{...MKT_DEF_SET,...(o.settings||{})}, ch:o.ch||{}, source:o.source||{}, content:o.content||[], place:o.place||null, campaigns:o.campaigns||[] }; }
 let mktData=loadMkt();
+/* 데모 자동 시드 — 첫 방문(키 없음)에만 일일·마케팅 샘플을 채워 공개 데모가 비어 보이지 않게. '전체 비우기'로 지우면 키가 남아 재주입 안 함(실데이터 전환 가능). */
+try{ if(localStorage.getItem(DKEY)===null) dySeedDemo(true); }catch(_){ }
+try{ if(localStorage.getItem(MKEY)===null) mktSeed(true); }catch(_){ }
 function saveMkt(){ try{ localStorage.setItem(MKEY, JSON.stringify(mktData)); }catch(_){ } }
 function mktHas(){ return Object.keys(mktData.ch).length>0; }
 function mktWon(n){ return Math.round(n).toLocaleString()+'원'; }
@@ -1112,8 +1115,8 @@ function mktMan(n){ return Math.round(n/10000).toLocaleString()+'만'; }
 function mktK(n){ n=+n||0; return n>=10000?(n/10000).toFixed(1)+'만':n.toLocaleString(); }
 function mktFunnel(){ const s=f=>Object.values(mktData.ch).reduce((a,c)=>a+(+c[f]||0),0); const reach=s('reach'),visits=s('visits'),bookings=s('bookings'),newpat=s('newpat'),rev=s('rev'); return {reach,visits,bookings,newpat,nonsal:Math.round(newpat*(mktData.settings.nonsalRate||0)),rev}; }
 function mktMini(title,icon){ return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic(icon||'mkt',16)}</span>${title}</div><span class="badge b-gray">데이터 없음</span></div><div class="meta">마케팅 샘플을 채우면 표시됩니다.</div></div>`; }
-function mktSeed(){
-  if(mktHas() && !confirm('마케팅 샘플 데이터(최근 4주)를 채웁니다. 기존 입력을 덮어쓸 수 있어요. 계속할까요?')) return;
+function mktSeed(silent){
+  if(!silent && mktHas() && !confirm('마케팅 샘플 데이터(최근 4주)를 채웁니다. 기존 입력을 덮어쓸 수 있어요. 계속할까요?')) return;
   mktData.settings={...MKT_DEF_SET};
   mktData.ch={
     blog:{reach:18400,visits:2120,bookings:0,newpat:38,rev:9200000,cost:0},
@@ -1137,7 +1140,7 @@ function mktSeed(){
     {name:'리틀리그 클리닉',leads:23,booked:12,rev:3600000},
     {name:'줄기세포 연골재생',leads:14,booked:6,rev:18000000},
   ];
-  saveMkt(); renderGrid();
+  saveMkt(); if(!silent) renderGrid();
 }
 function mktClear(){ if(!mktHas())return; if(!confirm('마케팅 데이터를 모두 비웁니다. 계속할까요?'))return; mktData={settings:{...MKT_DEF_SET},ch:{},source:{},content:[],place:null,campaigns:[]}; saveMkt(); renderGrid(); }
 function mkFunnelCard(){
