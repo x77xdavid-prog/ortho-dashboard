@@ -902,15 +902,11 @@ const cardDefs = {
       const head=['일','월','화','수','목','금','토'].map((w,i)=>`<div class="cal-h${i===0?' sun':i===6?' sat':''}">${w}</div>`).join('');
       return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('calendar',16)}</span>2026년 6월</div><span class="badge b-cyan">오늘 6/29</span></div><div class="cal-grid">${head}${cells}</div><div class="cal-legend"><span><i style="background:var(--amber)"></i>세무</span><span><i style="background:var(--cyan)"></i>공지</span><span><i style="background:var(--green)"></i>근무</span></div></div>`;
     }},
-    { id:'cal-shift', name:'주간 근무표', desc:'월~일 시프트', render:()=>{
-      const days=['월','화','수','목','금','토','일'];
-      const col={A:'var(--green)',P:'var(--cyan)',D:'var(--violet)'};
-      const rows=shifts.map(s=>`<tr><td class="sh-n">${s.n}</td>${s.wk.map(c=>`<td><span class="sh-c" style="background:${c==='-'?'rgba(15,46,61,.07)':col[c]};color:${c==='-'?'var(--ink3)':'#fff'}">${c==='-'?'·':c}</span></td>`).join('')}</tr>`).join('');
-      return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('staff',16)}</span>주간 근무표</div><span class="badge b-gray">6/29~7/5</span></div><div style="overflow-x:auto"><table class="sh-tbl"><thead><tr><th></th>${days.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div><div class="cal-legend"><span><i style="background:var(--green)"></i>A 오전</span><span><i style="background:var(--cyan)"></i>P 오후</span><span><i style="background:var(--violet)"></i>D 당직</span></div></div>`;
-    }},
+    { id:'cal-shift', name:'주간 근무표', desc:'월~일 시프트', render:()=>calShiftCard() },
     { id:'cal-tax', name:'국세청 세무 일정', desc:'신고·납부 기한', render:()=>`<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('news',16)}</span>국세청 세무 일정</div><span class="badge b-amber">D-11 임박</span></div>${taxCal.map(t=>`<div class="mini-row"><span class="badge ${t.badge[1]}" style="flex-shrink:0;min-width:42px;text-align:center">${t.dday}</span><span style="flex:1;font-size:12px"><b>${t.t}</b> <span style="font-size:10.5px;color:var(--ink3)">${t.d} · ${t.sub}</span></span></div>`).join('')}<div class="c-foot"><span>홈택스 연동 예정 · 참고용</span><span class="badge b-gray">추정</span></div></div>`},
     { id:'cal-notice', name:'공지사항', desc:'원내 공지', render:()=>`<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('bell',16)}</span>공지사항</div><span class="badge b-cyan">${notices.length}</span></div>${notices.map(n=>`<div class="mini-row" style="display:block"><div style="font-size:12px;font-weight:600;line-height:1.4">${n.t}</div><div style="font-size:10.5px;color:var(--ink3);margin-top:2px">${n.when} · <span class="badge ${n.badge[1]}" style="padding:1px 7px">${n.badge[0]}</span></div></div>`).join('')}</div>`},
     { id:'cal-news', name:'오늘의 뉴스', desc:'의료·제도', render:()=>`<div class="card click" onclick="go('news')"><div class="c-head"><div class="c-title"><span class="ci">${ic('news',16)}</span>오늘의 뉴스</div><span class="badge ${news[0].impact[1]}">${news[0].impact[0]}</span></div>${news.slice(0,2).map(x=>`<div class="mini-row" style="display:block"><div style="font-size:12px;font-weight:600;line-height:1.4">${x.t}</div><div style="font-size:10.5px;color:var(--ink3)">${x.src} · ${x.when}</div></div>`).join('')}<div class="c-foot"><span>제도 뉴스 게시판</span><span>→</span></div></div>`},
+    { id:'cal-import', name:'표 붙여넣기', desc:'근무표 일괄', render:()=>importCard('calendar'), init(root){ wireImport(root,'calendar'); } },
   ],
   lab: [
     { id:'lab-sum',    name:'오늘 검사',      desc:'건수·대기',       render:()=>labSumCard() },
@@ -1249,6 +1245,18 @@ function labStaffListCard(){ const S=labData.staff; return `<div class="card spa
 function labExtCard(){ return `<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('sync',16)}</span>외부 수탁 의뢰</div><span class="badge b-cyan">${+labData.ext||0}건</span></div><div class="meta">특수검사(호르몬·종양표지자 등) 외부 검사센터 의뢰 · 평균 회신 TAT <b>${labData.tat}일</b></div><div class="c-foot"><span>결과 회신 대기</span><span class="badge b-amber">D+1</span></div></div>`; }
 IMPORTS.lab={ icon:'lab', title:'표 붙여넣기 (검사 항목별)', unit:'항목', cols:['검사항목','건수'],
   parse(rows){ const recs=[]; rows.forEach(c=>{ const name=String(c[0]||'').trim(); if(!name||/검사항목|항목|구분/.test(name)) return; recs.push({ name, cnt:tblNum(c[1]), c:LAB_PAL[recs.length%LAB_PAL.length] }); }); return { n:recs.length, summary: recs.length?recs.length+'개 항목 · 총 '+recs.reduce((a,r)=>a+r.cnt,0)+'건':'인식된 항목 없음', apply(){ labData.types=recs; saveLab(); } }; } };
+
+/* ===== 달력·주간 근무표 데이터화 (Phase 4) ===== */
+const CKEY='aios_cal_v1';
+const CAL_DEF={ shifts:shifts };
+function loadCal(){ let o=null; try{ o=JSON.parse(localStorage.getItem(CKEY)||'null'); }catch(_){ } o=o||{}; return { shifts:(o.shifts&&o.shifts.length?o.shifts:CAL_DEF.shifts.map(s=>({n:s.n,wk:s.wk.slice()}))) }; }
+let calData=loadCal();
+function saveCal(){ try{ localStorage.setItem(CKEY, JSON.stringify(calData)); }catch(_){ } }
+function calShiftCard(){ const days=['월','화','수','목','금','토','일'], col={A:'var(--green)',P:'var(--cyan)',D:'var(--violet)'};
+  const rows=calData.shifts.map(s=>`<tr><td class="sh-n">${esc(s.n||'')}</td>${(s.wk||[]).map(c=>{ const on=col[c]; return `<td><span class="sh-c" style="background:${on?col[c]:'rgba(15,46,61,.07)'};color:${on?'#fff':'var(--ink3)'}">${on?esc(c):'·'}</span></td>`; }).join('')}</tr>`).join('');
+  return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('staff',16)}</span>주간 근무표</div><span class="badge b-gray">${calData.shifts.length}명</span></div><div style="overflow-x:auto"><table class="sh-tbl"><thead><tr><th></th>${days.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div><div class="cal-legend"><span><i style="background:var(--green)"></i>A 오전</span><span><i style="background:var(--cyan)"></i>P 오후</span><span><i style="background:var(--violet)"></i>D 당직</span></div></div>`; }
+IMPORTS.calendar={ icon:'calendar', title:'표 붙여넣기 (주간 근무표)', unit:'명', cols:['직원','월','화','수','목','금','토','일'],
+  parse(rows){ const recs=[]; rows.forEach(c=>{ const name=String(c[0]||'').trim(); if(!name||/직원|이름|성명/.test(name)) return; const wk=[]; for(let i=1;i<=7;i++){ const v=String(c[i]||'').trim().toUpperCase(); wk.push((v==='A'||v==='P'||v==='D')?v:'-'); } recs.push({n:name,wk}); }); return { n:recs.length, summary: recs.length?recs.length+'명 근무표 인식':'인식된 근무표 없음', apply(){ calData.shifts=recs; saveCal(); } }; } };
 
 /* ===== state ===== */
 const LSK = 'aios_glass_layout_v1';
