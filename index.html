@@ -562,7 +562,7 @@ const ic = (n,s=20)=>`<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="
 /* ===== boards ===== */
 const boards = [
   { id:'overview', name:'대시보드',   desc:'전체 관제탑',       sub:'오늘 한눈에 — 핵심 지표와 경영 총평' },
-  { id:'daily',    name:'일일 운영',   desc:'입력 → 진단',      sub:'매일 데이터를 입력하면 읽어서 진단 — 흑자도산·수금·노쇼·삭감 신호 (실입력 누적, 데모 아님)' },
+  { id:'daily',    name:'일일 운영',   desc:'입력 → 진단',      sub:'매일 데이터를 입력하면 읽어서 진단 — 유동성·수금·노쇼·삭감 신호 (실입력 누적, 데모 아님)' },
   { id:'claims',   name:'삭감 청구',   desc:'위험 청구 큐',  badge:12, sub:'제출 전 삭감 위험 사전 교정 — 위험도순' },
   { id:'revenue',  name:'매출·경영',   desc:'CEO 콕핏',          sub:'전문경영인 콕핏 — 현금·런웨이·삭감·노쇼·세무를 30초에 + 이번 주 액션 (이익보다 현금)' },
   { id:'mkt',      name:'마케팅·유입', desc:'채널 → 매출',       sub:'콘텐츠(블로그·유튜브·인스타·틱톡) → 예약 → 신환 → 비급여 매출 연결고리 — 채널 지표는 실입력, 기여매출·귀속은 예약경로 태깅 기반 추정' },
@@ -835,9 +835,9 @@ const cardDefs = {
       const t=(l,v,s,cls)=>`<div class="ck-tile"><div class="ck-l">${l}</div><div class="ck-v ${cls||''}">${v}</div><div class="ck-s">${s}</div></div>`;
       return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('revenue',16)}</span>Daily CEO Cockpit</div><span class="badge b-red">위험 2</span></div>
         <div class="ck-grid">${t('현금잔고','8,400<small>만</small>','가용 5,800만(맡은돈 분리)','')}${t('런웨이','13<small>개월</small>','월 순현금 −650만','warn')}${t('금일 매출','720<small>만</small>','수금 540만','')}${t('삭감률','2.6<small>%</small>','경고선 3% 이내','ok')}${t('노쇼율','9.2<small>%</small>','경고선 8% 초과','bad')}${t('수금률','88<small>%</small>','목표 95% 미달','bad')}</div>
-        <div class="ck-alert"><span class="badge b-red" style="flex-shrink:0">흑자도산 주의</span><span>손익은 <b>+2,100만/월 흑자</b>지만 현금은 <b style="color:var(--red)">월 −650만 감소</b> — 수금률·노쇼율이 원인. → 아래 액션 큐 처리.</span></div></div>`;
+        <div class="ck-alert"><span class="badge b-red" style="flex-shrink:0">유동성 위기</span><span>영업이익은 <b>+2,100만/월</b>이나 영업현금흐름은 <b style="color:var(--red)">월 −650만</b> — 수금률·노쇼율이 유동성을 잠식. → 액션 큐에서 즉시 조치.</span></div></div>`;
     }},
-    { id:'rev-cash', name:'현금 & 런웨이', desc:'30/60/90 예측', render:()=>`<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('revenue',16)}</span>현금 & 런웨이 (30/60/90일)</div><span class="badge b-red">흑자인데 현금↓</span></div><div class="meta" style="margin-bottom:6px">현 추세 90일 후 <b style="color:var(--red)">6,450만</b> · 수금률 95% 회복 시 <b style="color:var(--green)">9,150만</b> · BEP 대비 +19%(손익분기 넘김).</div><div style="position:relative;height:175px"><canvas></canvas></div></div>`,
+    { id:'rev-cash', name:'현금 & 런웨이', desc:'30/60/90 예측', render:()=>`<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('revenue',16)}</span>현금 & 런웨이 (30/60/90일)</div><span class="badge b-red">유동성 경고</span></div><div class="meta" style="margin-bottom:6px">현 추세 90일 후 <b style="color:var(--red)">6,450만</b> · 수금률 95% 회복 시 <b style="color:var(--green)">9,150만</b> · BEP 대비 +19%(손익분기 넘김).</div><div style="position:relative;height:175px"><canvas></canvas></div></div>`,
       init(root){ const cv=root.querySelector('canvas'); if(!cv||!window.Chart)return; new Chart(cv,{type:'line',data:{labels:['오늘','+30일','+60일','+90일'],datasets:[{label:'현 추세(수금 88%)',data:[8400,7750,7100,6450],borderColor:'#dc2626',backgroundColor:'rgba(220,38,38,.08)',fill:true,tension:.3,borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#dc2626'},{label:'수금 95% 회복 시',data:[8400,8650,8900,9150],borderColor:'#059669',borderDash:[5,4],borderWidth:2,pointRadius:0}]},options:chartOpts('만원')}); }},
     { id:'rev-collect', name:'수금률', desc:'링·목표 95%', render:()=>ringGauge(88,'var(--red)','수금률','목표 95% · 미수금 2,180만','▼ 7%p 목표 미달','down') },
     { id:'rev-nonsal', name:'비급여 비중', desc:'링·목표 45%', render:()=>ringGauge(40,'var(--amber)','비급여 비중','목표 45% · 도수 가동 73%','▼ 5%p ≈ 월 910만','flat') },
@@ -980,11 +980,11 @@ function dyDiagnose(){
   const signal=flags.includes('risk')?'risk':flags.length?'warn':'good';
   let headline, action;
   if(signal==='risk'){
-    if(netCashDaily<0){ headline='손익과 별개로 현금이 순유출 중 — 흑자도산 신호'; action='미수금 회수 담당 지정 + 변동비 점검'; }
-    else if(noshoRate>S.noshoWarn){ headline='노쇼율 '+dyPct(noshoRate)+'로 경고선 초과'; action='초과 요일 리마인드 강화'; }
-    else { headline='수금률 '+dyPct(sugeumRate)+'로 목표 미달'; action='미수금 회수 우선 배정'; }
-  } else if(signal==='warn'){ headline='삭감률 '+dyPct(sakgamRate)+' — 제출 전 점검 필요'; action='1위 삭감 사유 사전 체크리스트'; }
-  else { headline='핵심 지표 모두 양호 — 현 페이스 유지'; action='모니터링 지속(긴급 액션 없음)'; }
+    if(netCashDaily<0){ headline='손익은 흑자여도 영업현금흐름이 순유출 — 유동성 위기 신호'; action='매출채권 회수 책임자 지정, 변동비 구조 즉시 점검'; }
+    else if(noshoRate>S.noshoWarn){ headline='노쇼율 '+dyPct(noshoRate)+' 경고선 초과 — 가동률·매출 직접 잠식'; action='피크 요일 리마인드 강화, 노쇼 페널티 정책 검토'; }
+    else { headline='수금률 '+dyPct(sugeumRate)+'로 목표 하회 — 운전자본 압박'; action='미수 30일 경과분 우선 회수, 수금 프로세스 재정비'; }
+  } else if(signal==='warn'){ headline='삭감률 '+dyPct(sakgamRate)+' — 청구 수익 누수, 제출 전 사전심사 필요'; action='최다 삭감 사유 사전심사 체크리스트 적용'; }
+  else { headline='핵심 지표 전반 양호 — 현 운영 기조 유지'; action='정기 모니터링 유지, 별도 개입 불요'; }
   return { signal, days:n, headline, action,
     drivers:[ {k:'수금률',v:dyPct(sugeumRate),bad:sugeumRate<S.sugeumTarget}, {k:'노쇼율',v:dyPct(noshoRate),bad:noshoRate>S.noshoWarn}, {k:'삭감률',v:dyPct(sakgamRate),bad:sakgamRate>S.sakgamWarn}, {k:'비급여',v:dyPct(nonsalRate),bad:false} ],
     metrics:{tot,sugeum,runway,netCashPeriod}, series:recent.slice(-7).map(dyTotal) };
