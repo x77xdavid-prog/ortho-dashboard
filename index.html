@@ -556,6 +556,7 @@ const P = {
   sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.9 4.9l1.4 1.4"/><path d="M17.7 17.7l1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.9 19.1l1.4-1.4"/><path d="M17.7 6.3l1.4-1.4"/>',
   moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
   mkt:'<path d="m3 11 18-5v12L3 14v-3Z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  help:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/>',
 };
 const ic = (n,s=20)=>`<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
 
@@ -573,6 +574,7 @@ const boards = [
   { id:'news',     name:'제도 뉴스',   desc:'수가·삭감 변경',     sub:'쐐기 정확도를 지키는 외부 변화 감지' },
   { id:'calendar', name:'달력·일정',   desc:'일정·근무·세무·공지', sub:'일정 · 주간 근무표 · 국세청 세무일정 · 공지사항 · 뉴스' },
   { id:'gap',      name:'의사랑 보완', desc:'우리가 메우는 EMR 갭', sub:'국내 1위 EMR 의사랑이 비운 자리 — 우리 OS가 얹는 계층 (ysarang.com 기능 기준)' },
+  { id:'help',     name:'사용설명서', desc:'쓰는 법·복구', sub:'게시판·카드 조립/편집, 지운 것 복구, 일일 입력→진단, 백업·다른 PC, 신호 읽는 법' },
 ];
 
 /* ===== demo data ===== */
@@ -811,6 +813,14 @@ const widgets = [
 /* ===== 보드별 카드 정의 (모든 카드 = 삭제·이동·토글 가능) ===== */
 const cardDefs = {
   overview: widgets,
+  help: [
+    { id:'hp-intro', name:'시작하기', desc:'30초 요약', render:()=>`<div class="card feature span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('help',16)}</span>사용설명서 — 30초 요약</div><span class="badge">가이드</span></div><div class="meta">왼쪽 <b>게시판</b>을 눌러 화면을 바꾸고, 상단 <b>조립·편집</b>으로 카드를 <b>옮기고·키우고·지우고·되살린다</b>. 모든 데이터는 <b>이 브라우저</b>에 저장돼(서버 없음) 새로고침해도 유지된다. 아래 카드에서 핵심 기능을 차례로 설명한다.</div></div>` },
+    { id:'hp-edit', name:'조립·편집', desc:'배치 바꾸기', render:()=>`<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('grid',16)}</span>① 조립·편집 — 배치 바꾸기</div><span class="badge b-cyan">상단 버튼</span></div><div style="font-size:12px;line-height:1.8;margin-top:2px"><div>· 상단 <b>조립·편집</b> 켜기 → 점선 편집 모드</div><div>· 카드를 <b>드래그</b>해 위치 이동</div><div>· 카드 <b>↔ 버튼</b>으로 너비 1→2→3칸</div><div>· 게시판 이름 <b>더블클릭</b> → 이름 변경</div><div>· 카드·게시판 <b>✕</b> → 숨김(지움)</div><div>· 사이드바 게시판 <b>드래그</b> → 순서 변경</div></div></div>` },
+    { id:'hp-restore', name:'지운 것 복구', desc:'4가지 방법', render:()=>`<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('sync',16)}</span>② 지운 카드·게시판 복구</div><span class="badge b-green">안심</span></div><div class="meta" style="margin-bottom:9px">삭제는 <b>영구 삭제가 아니라 숨김</b> — 언제든 되돌린다.</div><div style="font-size:12px;line-height:1.85"><div style="display:flex;gap:7px;align-items:flex-start;margin-bottom:5px"><span class="badge b-gray" style="flex-shrink:0">카드</span><span>조립·편집 중 <b>맨 아래 트레이</b>의 ‘<b>숨긴 카드 · 눌러서 되돌리기</b>’ 칩 클릭</span></div><div style="display:flex;gap:7px;align-items:flex-start;margin-bottom:5px"><span class="badge b-gray" style="flex-shrink:0">게시판</span><span><b>조립·편집 → 갤러리</b>의 ‘게시판’에서 다시 켜기</span></div><div style="display:flex;gap:7px;align-items:flex-start;margin-bottom:5px"><span class="badge b-gray" style="flex-shrink:0">전체</span><span>갤러리 ‘<b>전체 기본값</b>’ → 모두 초기화</span></div><div style="display:flex;gap:7px;align-items:flex-start"><span class="badge b-gray" style="flex-shrink:0">시점</span><span><b>설정</b> 게시판 ‘변경 기록’에서 <b>날짜 칩</b> 클릭 → 그날로 복원</span></div></div></div>` },
+    { id:'hp-daily', name:'일일 운영', desc:'입력→진단', render:()=>`<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('daily',16)}</span>③ 일일 운영 — 입력하면 진단</div><span class="badge b-cyan">실입력 기반</span></div><div style="font-size:12px;line-height:1.8;margin-top:2px"><div>· <b>일일 운영</b> 게시판 → <b>오늘 운영 입력</b>에 환자·매출·청구 입력 후 <b>저장</b></div><div>· 쌓이면 <b>AI 진단</b>이 수금률·노쇼율·삭감률·<b>유동성</b>을 읽어 신호 표시</div><div>· 숫자가 없으면 ‘<b>샘플 14일 채우기</b>’로 체험, ‘<b>전체 비우기</b>’로 초기화</div></div></div>` },
+    { id:'hp-signal', name:'신호 읽기', desc:'양호/주의/위험', render:()=>`<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('overview',16)}</span>④ 신호 읽는 법</div><span class="badge b-amber">진단 배지</span></div><div style="display:flex;flex-direction:column;gap:9px;margin-top:5px;font-size:12px;line-height:1.5"><div style="display:flex;gap:8px;align-items:center"><span class="badge b-green" style="flex-shrink:0">양호</span><span>핵심 지표 정상 — 현 운영 기조 유지</span></div><div style="display:flex;gap:8px;align-items:center"><span class="badge b-amber" style="flex-shrink:0">주의</span><span>삭감 등 수익 누수 — 제출 전 사전심사</span></div><div style="display:flex;gap:8px;align-items:center"><span class="badge b-red" style="flex-shrink:0">위험</span><span>유동성·수금·노쇼 경고 — 즉시 조치</span></div></div></div>` },
+    { id:'hp-backup', name:'백업·다른 PC', desc:'.json·테마', render:()=>`<div class="card"><div class="c-head"><div class="c-title"><span class="ci">${ic('sync',16)}</span>⑤ 다른 PC·백업·테마</div><span class="badge b-gray">localStorage</span></div><div style="font-size:12px;line-height:1.8;margin-top:2px"><div>· 데이터는 <b>이 브라우저에만</b> 저장(서버 없음)</div><div>· <b>일일 운영 → 데이터 백업</b>에서 <b>내보내기(.json)</b> → 다른 PC에서 <b>가져오기</b></div><div>· 상단 우측 <b>테마 토글</b>(시스템/라이트/다크)</div><div>· 링크 열어도 화면이 비면 <b>Ctrl+Shift+R</b>(캐시 새로고침)</div></div></div>` },
+  ],
   daily: [
     { id:'dy-input',  name:'오늘 입력',  desc:'일일 운영 데이터 누적', render:()=>dyInputCard(),  init(root){ dyWireInput(root); } },
     { id:'dy-diag',   name:'AI 진단',    desc:'데이터 읽고 진단',     render:()=>dyDiagCard(), init(root){ dyWireDiag(root); } },
