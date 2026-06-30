@@ -824,6 +824,7 @@ const cardDefs = {
   ],
   daily: [
     { id:'dy-input',  name:'오늘 입력',  desc:'일일 운영 데이터 누적', render:()=>dyInputCard(),  init(root){ dyWireInput(root); } },
+    { id:'dy-import', name:'표 붙여넣기', desc:'엑셀 일괄 입력', render:()=>importCard('daily'), init(root){ wireImport(root,'daily'); } },
     { id:'dy-diag',   name:'AI 진단',    desc:'데이터 읽고 진단',     render:()=>dyDiagCard(), init(root){ dyWireDiag(root); } },
     { id:'dy-recent', name:'최근 기록',  desc:'누적 일자',           render:()=>dyRecentCard(), init(root){ dyWireRecent(root); } },
     { id:'dy-set',    name:'가정·설정',  desc:'목표·경고선(진단 기준)', render:()=>dySetCard(),    init(root){ dyWireSet(root); } },
@@ -838,6 +839,7 @@ const cardDefs = {
     { id:'mk-place',    name:'플레이스·리뷰',   desc:'평점·순위',             render:()=>mkPlaceCard() },
     { id:'mk-campaign', name:'프리미엄 캠페인', desc:'키성장·리틀리그·줄기세포', render:()=>mkCampaignCard() },
     { id:'mk-input',    name:'채널 입력',       desc:'주간 데이터',           render:()=>mkInputCard(),    init(root){ mkWireInput(root); } },
+    { id:'mk-import',   name:'표 붙여넣기',     desc:'채널 일괄 입력',         render:()=>importCard('mkt'), init(root){ wireImport(root,'mkt'); } },
     { id:'mk-set',      name:'가정·설정',       desc:'LTV·전환율·출처',       render:()=>mkSetCard(),      init(root){ mkWireSet(root); } },
   ],
   claims: claims.map((c,i)=>({ id:'cl'+i, lv:c.lv, name:c.n+' · '+c.a, desc:c.pat, render:()=>claimCard(c) })),
@@ -1208,6 +1210,26 @@ function mkSetCard(){
     <div style="display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--glass-bd-soft);padding-top:11px"><span class="meta" style="width:100%;margin-bottom:2px">체험·시연용 — 가공된 샘플(실데이터 아님)</span><button class="cc-go" type="button" id="mk-setsave">설정 저장</button><button class="dy-imp" type="button" id="mk-seed2">샘플 채우기</button><button class="dy-imp" type="button" id="mk-clear">전체 비우기</button></div></div>`;
 }
 function mkWireSet(root){ dyWireNum(root); const ss=root.querySelector('#mk-setsave'); if(ss) ss.addEventListener('click',()=>{ root.querySelectorAll('[data-mset]').forEach(i=>{ if(String(i.value).trim()!=='') mktData.settings[i.dataset.mset]=dyNum(i.value); }); saveMkt(); renderGrid(); }); const s=root.querySelector('#mk-seed2'); if(s) s.addEventListener('click',mktSeed); const c=root.querySelector('#mk-clear'); if(c) c.addEventListener('click',mktClear); }
+
+/* ===== 공용 표 붙여넣기 임포트 (엑셀/CSV → 보드 데이터) ===== */
+function tblParse(t){ return String(t).split(/\r?\n/).map(l=>l.replace(/\s+$/,'')).filter(l=>l.trim().length).map(l=>(l.indexOf('\t')>=0?l.split('\t'):l.split(',')).map(c=>c.trim())); }
+function tblNum(v){ return +String(v).replace(/[^0-9.\-]/g,'')||0; }
+function tblDate(s){ s=String(s).trim(); let m=s.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); if(m) return m[1]+'-'+String(+m[2]).padStart(2,'0')+'-'+String(+m[3]).padStart(2,'0'); m=s.match(/^(\d{1,2})\D+(\d{1,2})$/); if(m){ const y=new Date().getFullYear(); return y+'-'+String(+m[1]).padStart(2,'0')+'-'+String(+m[2]).padStart(2,'0'); } return ''; }
+const IMPORTS = {
+  daily: { icon:'daily', title:'표 붙여넣기 (일괄 입력)', unit:'일',
+    cols:['날짜','신환','재진','예약','노쇼','급여','도수','충격파','비급여주사','보조기','보험청구액','삭감액','당일수금','변동비'],
+    keys:['date','sinhwan','jaejin','yeyak','nosho','geupyeo','dosu','chunggyeok','jusa','bojogi','boheom','sakgam','sugeum','byeondongbi'],
+    parse(rows){ const recs=[]; rows.forEach(c=>{ const d=tblDate(c[0]); if(!d) return; const rec={}; for(let i=1;i<this.keys.length;i++) rec[this.keys[i]]=tblNum(c[i]); recs.push({d,rec}); }); const ds=recs.map(r=>r.d).sort(); return { n:recs.length, summary: recs.length?recs.length+'일 인식 · '+ds[0]+'~'+ds[ds.length-1]:'인식된 날짜 없음', apply(){ recs.forEach(r=>dailyData.days[r.d]=r.rec); saveDaily(); } }; } },
+  mkt: { icon:'mkt', title:'표 붙여넣기 (채널 일괄)', unit:'채널',
+    cols:['채널','노출도달','유입','예약','신환','기여매출','비용'],
+    chMap:{'네이버블로그':'blog','블로그':'blog','유튜브':'youtube','인스타그램':'insta','인스타':'insta','틱톡':'tiktok','네이버예약':'naver','카카오예약':'kakao'},
+    parse(rows){ const recs=[]; rows.forEach(c=>{ const ck=this.chMap[String(c[0]).replace(/\s/g,'')]; if(!ck) return; recs.push({ck,rec:{reach:tblNum(c[1]),visits:tblNum(c[2]),bookings:tblNum(c[3]),newpat:tblNum(c[4]),rev:tblNum(c[5]),cost:tblNum(c[6])}}); }); return { n:recs.length, summary: recs.length?recs.length+'개 채널 인식':'인식된 채널 없음', apply(){ recs.forEach(r=>mktData.ch[r.ck]=r.rec); saveMkt(); } }; } },
+};
+function importCard(key){ const I=IMPORTS[key]; return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic(I.icon,16)}</span>${I.title}</div><span class="badge b-cyan">엑셀 일괄</span></div><div class="meta" style="margin-bottom:8px">엑셀·청구프로그램에서 복사한 표를 붙여넣으세요(탭·콤마 자동 인식, 헤더 줄 자동 건너뜀). 같은 ${I.unit}은 덮어씁니다.</div><textarea id="imp-ta" rows="5" placeholder="${I.cols.join('  ')}  ← 한 줄 = 1${I.unit}" style="width:100%;box-sizing:border-box;font-family:var(--f-mono);font-size:11.5px;line-height:1.6;padding:9px;border:1px solid var(--glass-bd);border-radius:10px;background:var(--glass);color:var(--ink);resize:vertical"></textarea><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:9px"><button class="dy-imp" type="button" id="imp-tpl">양식 넣기</button><button class="dy-imp" type="button" id="imp-prev">미리보기</button><button class="cc-go" type="button" id="imp-apply">적용</button><span class="meta" id="imp-msg" style="flex:1;min-width:120px"></span></div></div>`; }
+function wireImport(root,key){ const I=IMPORTS[key]; const ta=root.querySelector('#imp-ta'), msg=root.querySelector('#imp-msg'); if(!ta)return;
+  root.querySelector('#imp-tpl').addEventListener('click',()=>{ const h=I.cols.join('\t'); ta.value=h+'\n'; try{ navigator.clipboard&&navigator.clipboard.writeText(h); }catch(_){ } msg.textContent='양식 헤더 삽입됨 — 그 아래에 데이터를 붙여넣으세요'; ta.focus(); });
+  root.querySelector('#imp-prev').addEventListener('click',()=>{ msg.textContent='미리보기: '+I.parse(tblParse(ta.value)).summary; });
+  root.querySelector('#imp-apply').addEventListener('click',()=>{ const r=I.parse(tblParse(ta.value)); if(!r.n){ msg.textContent='인식된 행이 없습니다 — 형식을 확인하세요'; return; } if(!confirm(r.summary+'\n적용할까요? (같은 '+I.unit+'은 덮어쓰기)')) return; r.apply(); renderGrid(); }); }
 
 /* ===== state ===== */
 const LSK = 'aios_glass_layout_v1';
