@@ -832,6 +832,7 @@ const cardDefs = {
     { id:'dy-backup', name:'데이터 백업·이전', desc:'다른 PC로 .json', render:()=>dyBackupCard(), init(root){ dyWireBackup(root); } },
   ],
   mkt: [
+    { id:'mk-advisor', name:'AI 비서', desc:'다음 행동', render:()=>advisorCard('mkt') },
     { id:'mk-funnel',   name:'연결고리',       desc:'마케팅→매출 한 줄',     render:()=>mkFunnelCard(),   init(root){ const b=root.querySelector('#mk-seed'); if(b) b.addEventListener('click',mktSeed); } },
     { id:'mk-channels', name:'채널별 성과',     desc:'블로그·YT·IG·틱톡·예약', render:()=>mkChannelsCard() },
     { id:'mk-source',   name:'신환 유입경로',   desc:'경로 도넛',             render:()=>mkSourceCard(),   init(root){ mkSourceInit(root); } },
@@ -873,6 +874,7 @@ const cardDefs = {
     ...staff.map((s,i)=>({ id:'st'+i, name:s.n, desc:s.r, render:()=>`<div class="card click" onclick="openResume('${s.n}')"><div class="av-row"><div class="av-lg" style="background:${s.c}">${s.n.charAt(0)}</div><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px">${s.n}</div><div class="meta">${s.r}</div></div><span class="badge ${s.att[1]}">${s.att[0]}</span></div><div class="c-foot"><span>이력서 보기</span><span>→</span></div></div>` })),
   ],
   therapy: [
+    { id:'th-advisor', name:'AI 비서', desc:'다음 행동', render:()=>advisorCard('therapy') },
     { id:'th-sum',    name:'오늘 도수치료',  desc:'세션·가동률',    render:()=>thSumCard() },
     { id:'th-list',   name:'치료사별 현황',  desc:'세션·가동률',    render:()=>thListCard() },
     { id:'th-mix',    name:'치료 구성',      desc:'도수·충격파·침',  render:()=>thMixCard() },
@@ -894,6 +896,7 @@ const cardDefs = {
       <div class="c-foot"><span>${g.boardName} 게시판 열기</span><span>→</span></div></div>`})),
   ],
   calendar: [
+    { id:'cal-advisor', name:'AI 비서', desc:'다음 행동', render:()=>advisorCard('calendar') },
     { id:'cal-month', name:'이번 달 캘린더', desc:'2026년 6월', render:()=>{
       const today=29, firstDow=1, days=30;
       const ev={10:'var(--amber)',15:'var(--cyan)',20:'var(--green)',30:'var(--amber)'};
@@ -910,6 +913,7 @@ const cardDefs = {
     { id:'cal-import', name:'표 붙여넣기', desc:'근무표 일괄', render:()=>importCard('calendar'), init(root){ wireImport(root,'calendar'); } },
   ],
   lab: [
+    { id:'lab-advisor', name:'AI 비서', desc:'다음 행동', render:()=>advisorCard('lab') },
     { id:'lab-sum',    name:'오늘 검사',      desc:'건수·대기',       render:()=>labSumCard() },
     { id:'lab-types',  name:'검사 항목별',    desc:'항목·건수',       render:()=>labTypesCard() },
     { id:'lab-staff',  name:'임상병리사별',   desc:'처리 건수',       render:()=>labStaffListCard() },
@@ -1258,6 +1262,39 @@ function calShiftCard(){ const days=['월','화','수','목','금','토','일'],
   return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('staff',16)}</span>주간 근무표</div><span class="badge b-gray">${calData.shifts.length}명</span></div><div style="overflow-x:auto"><table class="sh-tbl"><thead><tr><th></th>${days.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div><div class="cal-legend"><span><i style="background:var(--green)"></i>A 오전</span><span><i style="background:var(--cyan)"></i>P 오후</span><span><i style="background:var(--violet)"></i>D 당직</span></div></div>`; }
 IMPORTS.calendar={ icon:'calendar', title:'표 붙여넣기 (주간 근무표)', unit:'명', cols:['직원','월','화','수','목','금','토','일'],
   parse(rows){ const recs=[]; rows.forEach(c=>{ const name=String(c[0]||'').trim(); if(!name||/직원|이름|성명/.test(name)) return; const wk=[]; for(let i=1;i<=7;i++){ const v=String(c[i]||'').trim().toUpperCase(); wk.push((v==='A'||v==='P'||v==='D')?v:'-'); } recs.push({n:name,wk}); }); return { n:recs.length, summary: recs.length?recs.length+'명 근무표 인식':'인식된 근무표 없음', apply(){ calData.shifts=recs; saveCal(); } }; } };
+
+/* ===== 보드별 룰 기반 비서 (실데이터 → 다음 행동 제안, LLM 없음) ===== */
+const MKT_NAME={blog:'블로그',youtube:'유튜브',insta:'인스타',tiktok:'틱톡',naver:'네이버예약',kakao:'카카오예약'};
+const ADVISORS={
+  mkt(){ if(!mktHas()) return []; const acts=[], ch=mktData.ch;
+    const cont=[...(mktData.content||[])].sort((a,b)=>(+b.rev||0)-(+a.rev||0))[0];
+    if(cont&&+cont.rev) acts.push({sig:'good',trigger:mktMan(cont.rev),action:'‘'+cont.title+'’ 성과 최고 — 유사 콘텐츠·채널 확대'});
+    Object.keys(ch).forEach(k=>{ if(k==='naver'||k==='kakao') return; const c=ch[k], cost=+c.cost||0, np=+c.newpat||0; if(cost>0&&(np===0||cost/np>60000)) acts.push({sig:'warn',trigger:'CAC '+(np?mktWon(Math.round(cost/np)):'∞'),action:(MKT_NAME[k]||k)+' 획득비용 높음 — 유료 비중·타겟 점검'}); });
+    Object.keys(ch).forEach(k=>{ const c=ch[k], r=+c.reach||0, np=+c.newpat||0; if(r>=10000&&np<=8) acts.push({sig:'warn',trigger:'도달 '+mktK(r),action:(MKT_NAME[k]||k)+' 도달 대비 신환 적음 — 예약 CTA 강화'}); });
+    return acts.slice(0,4);
+  },
+  therapy(){ const acts=[]; therapyData.list.forEach(t=>{ const cap=+t.cap||0, util=cap?Math.round((+t.sessions||0)/cap*100):0; if(util>=90) acts.push({sig:'risk',trigger:'가동 '+util+'%',action:(t.n||'')+' 치료사 포화 — 예약 분산·증원 검토'}); });
+    therapyData.list.forEach(t=>{ const cap=+t.cap||0, util=cap?Math.round((+t.sessions||0)/cap*100):0; if(util<60) acts.push({sig:'warn',trigger:'가동 '+util+'%',action:(t.n||'')+' 여유 — 온라인 예약으로 슬롯 채우기'}); });
+    const cn=(+therapyData.cancel||0)+(+therapyData.noshow||0); if(cn>=5) acts.push({sig:'warn',trigger:'취소·노쇼 '+cn,action:'빈 슬롯 대기자 재배정·리마인드'});
+    return acts.slice(0,4);
+  },
+  lab(){ const acts=[], wait=+labData.wait||0, ext=+labData.ext||0; if(wait>=8) acts.push({sig:'warn',trigger:'대기 '+wait,action:'검사 대기 누적 — 검체 처리 우선순위 조정'});
+    const top=[...labData.types].sort((a,b)=>(+b.cnt||0)-(+a.cnt||0))[0]; if(top) acts.push({sig:'good',trigger:(+top.cnt||0)+'건',action:(top.name||'')+' 최다 — 시약·인력 사전 확보'});
+    if(ext>0) acts.push({sig:'good',trigger:'외부 '+ext+'건',action:'외부 수탁 TAT '+labData.tat+'일 — 회신 지연 건 추적'});
+    return acts.slice(0,4);
+  },
+  calendar(){ const acts=[], days=['월','화','수','목','금','토','일'], cnt=[0,0,0,0,0,0,0]; calData.shifts.forEach(s=>(s.wk||[]).forEach((c,i)=>{ if(c&&c!=='-'&&i<7) cnt[i]++; }));
+    let mi=0; for(let i=1;i<6;i++) if(cnt[i]<cnt[mi]) mi=i;
+    acts.push({sig: cnt[mi]<=Math.ceil(calData.shifts.length*0.5)?'warn':'good', trigger:days[mi]+' '+cnt[mi]+'명', action:days[mi]+'요일 근무 최소 — 인력 배치·예약량 점검'});
+    if(typeof taxCal!=='undefined'&&taxCal[0]) acts.push({sig:'warn',trigger:taxCal[0].dday,action:taxCal[0].t+' 임박 — 신고 자료 준비'});
+    return acts.slice(0,4);
+  }
+};
+function advisorCard(key){ const acts=(ADVISORS[key]?ADVISORS[key]():[]).filter(Boolean); const sm={good:'b-green',warn:'b-amber',risk:'b-red'};
+  if(!acts.length) return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('night',16)}</span>AI 비서 — 다음 행동</div><span class="badge b-green">이상 없음</span></div><div class="meta">현재 입력 데이터 기준 긴급 액션 없음 — 현 운영 기조 유지. <span class="badge b-gray" style="margin-left:4px">실입력 기반</span></div></div>`;
+  const worst=acts.some(a=>a.sig==='risk')?'b-red':acts.some(a=>a.sig==='warn')?'b-amber':'b-green';
+  return `<div class="card span2"><div class="c-head"><div class="c-title"><span class="ci">${ic('night',16)}</span>AI 비서 — 다음 행동</div><span class="badge ${worst}">${acts.length} 제안</span></div><div style="display:flex;flex-direction:column;gap:9px;margin-top:4px">${acts.map(a=>`<div style="display:flex;gap:9px;align-items:flex-start"><span class="badge ${sm[a.sig]||'b-gray'}" style="flex-shrink:0;white-space:nowrap">${esc(a.trigger||'')}</span><div style="flex:1;font-size:12px;line-height:1.5;font-weight:600">${esc(a.action||'')}</div></div>`).join('')}</div><div class="c-foot"><span>실입력 데이터 기반 제안 · 참고용</span><span class="badge b-gray">비서</span></div></div>`;
+}
 
 /* ===== state ===== */
 const LSK = 'aios_glass_layout_v1';
